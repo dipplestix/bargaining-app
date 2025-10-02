@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bargaining Game</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Discounted Bargaining Game</h1>
+    <p>Negotiate with Player 2 to divide the items before the 4 rounds expire.</p>
+  </header>
+
+  <main>
+    <section class="info-panel">
+      <div class="card">
+        <h2>Game Parameters</h2>
+        <ul>
+          <li>Total rounds: <strong>4</strong></li>
+          <li>Discount rate: <strong>0.95</strong></li>
+          <li>Items available: 7 × Item 1, 4 × Item 2, 1 × Item 3</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h2>Your Private Values</h2>
+        <ul id="player1-values"></ul>
+        <p>Your outside offer: <strong id="player1-outside"></strong></p>
+      </div>
+      <div class="card hidden" id="player2-card">
+        <h2>Player 2 Information</h2>
+        <p class="note">Hidden during negotiation. Revealed when the game ends.</p>
+        <ul id="player2-values"></ul>
+        <p>Player 2 outside offer: <strong id="player2-outside"></strong></p>
+      </div>
+    </section>
+
+    <section class="game-panel">
+      <div class="status-bar">
+        <div>Round: <span id="round">1</span> / 4</div>
+        <div>Turn: <span id="turn">Player 1</span></div>
+        <div class="status-message" id="status-message">Make an opening offer or walk away.</div>
+      </div>
+
+      <div class="offer-section">
+        <h2>Your Action</h2>
+        <form id="offer-form">
+          <p class="instruction">Enter how many units you offer to Player 2.</p>
+          <div class="input-grid">
+            <label>Item 1
+              <input type="number" min="0" step="1" id="offer-item-1" required />
+            </label>
+            <label>Item 2
+              <input type="number" min="0" step="1" id="offer-item-2" required />
+            </label>
+            <label>Item 3
+              <input type="number" min="0" step="1" id="offer-item-3" required />
+            </label>
+          </div>
+          <div class="button-row">
+            <button type="submit" class="primary" id="submit-offer">Submit Offer</button>
+            <button type="button" id="walk-away" class="secondary">Walk Away</button>
+            <button type="button" id="accept-offer" class="secondary" disabled>Accept Current Offer</button>
+          </div>
+        </form>
+      </div>
+
+      <div class="current-offer" id="current-offer"></div>
+
+      <div class="history">
+        <h2>Negotiation History</h2>
+        <ul id="history-list"></ul>
+      </div>
+
+      <div class="summary" id="summary"></div>
+
+      <div class="controls">
+        <button type="button" id="new-game" class="primary">Start New Game</button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Built for exploring strategic bargaining with private values and discounted rounds.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
