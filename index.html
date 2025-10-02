@@ -3,49 +3,72 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Bargaining Game</title>
+  <title>Real-Time Bargaining Game</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header>
     <h1>Discounted Bargaining Game</h1>
-    <p>Negotiate with Player 2 to divide the items before the 4 rounds expire.</p>
+    <p>Negotiate with a human opponent over four rounds. Share a game code to play together online.</p>
   </header>
 
   <main>
     <section class="info-panel">
+      <div class="card" id="connection-card">
+        <h2>Connect with a Friend</h2>
+        <p id="lobby-helper">Choose a display name. Create a game to generate a code or join an existing code.</p>
+        <div class="lobby-grid">
+          <label>Display name
+            <input type="text" id="player-name" maxlength="20" placeholder="Alex" />
+          </label>
+          <label>Game code
+            <input type="text" id="game-id" maxlength="6" placeholder="ABCD" />
+          </label>
+        </div>
+        <div class="button-row lobby-buttons">
+          <button type="button" class="primary" id="create-game">Create Game</button>
+          <button type="button" class="secondary" id="join-game">Join Game</button>
+        </div>
+        <p class="lobby-status" id="lobby-status">Connecting...</p>
+      </div>
+
       <div class="card">
         <h2>Game Parameters</h2>
         <ul>
-          <li>Total rounds: <strong>4</strong></li>
-          <li>Discount rate: <strong>0.95</strong></li>
-          <li>Items available: 7 × Item 1, 4 × Item 2, 1 × Item 3</li>
+          <li>Total rounds: <strong id="total-rounds">4</strong></li>
+          <li>Discount rate: <strong id="discount-rate">0.95</strong></li>
+          <li>Items available:</li>
         </ul>
+        <ul id="items-list" class="items-list"></ul>
       </div>
+
       <div class="card">
         <h2>Your Private Values</h2>
-        <ul id="player1-values"></ul>
-        <p>Your outside offer: <strong id="player1-outside"></strong></p>
+        <p>You are: <strong id="player-role">Not connected</strong></p>
+        <ul id="player-values"></ul>
+        <p>Your outside offer: <strong id="player-outside">—</strong></p>
       </div>
-      <div class="card hidden" id="player2-card">
-        <h2>Player 2 Information</h2>
-        <p class="note">Hidden during negotiation. Revealed when the game ends.</p>
-        <ul id="player2-values"></ul>
-        <p>Player 2 outside offer: <strong id="player2-outside"></strong></p>
+
+      <div class="card hidden" id="opponent-card">
+        <h2>Opponent Information</h2>
+        <p class="note">Hidden until the negotiation ends.</p>
+        <ul id="opponent-values"></ul>
+        <p>Opponent outside offer: <strong id="opponent-outside"></strong></p>
       </div>
     </section>
 
-    <section class="game-panel">
+    <section class="game-panel hidden">
       <div class="status-bar">
-        <div>Round: <span id="round">1</span> / 4</div>
-        <div>Turn: <span id="turn">Player 1</span></div>
-        <div class="status-message" id="status-message">Make an opening offer or walk away.</div>
+        <div>Game code: <span id="status-game-code">—</span></div>
+        <div>Round: <span id="round">—</span> / <span id="total-rounds-status">4</span></div>
+        <div>Turn: <span id="turn">—</span></div>
+        <div class="status-message" id="status-message">Waiting to connect...</div>
       </div>
 
       <div class="offer-section">
         <h2>Your Action</h2>
         <form id="offer-form">
-          <p class="instruction">Enter how many units you offer to Player 2.</p>
+          <p class="instruction">Enter how many units you offer to your opponent.</p>
           <div class="input-grid">
             <label>Item 1
               <input type="number" min="0" step="1" id="offer-item-1" required />
@@ -75,7 +98,7 @@
       <div class="summary" id="summary"></div>
 
       <div class="controls">
-        <button type="button" id="new-game" class="primary">Start New Game</button>
+        <button type="button" id="new-game" class="primary" disabled>Start New Game</button>
       </div>
     </section>
   </main>

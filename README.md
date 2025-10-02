@@ -1,19 +1,54 @@
 # bargaining-app
 
-A lightweight browser-based simulation of a four-round bargaining game with discounted payoffs. You play as Player 1 and negotiate against an automated Player 2 to decide how three types of items are divided.
+A real-time browser-based simulation of a four-round bargaining game with discounted payoffs. Two human players
+connect over the network, receive private valuations, and take turns proposing and responding to offers.
 
 ## Getting started
 
-This project is implemented with vanilla HTML, CSS, and JavaScript. No build step is required.
+This project is implemented with vanilla HTML, CSS, and JavaScript and synchronises players using a small Node.js
+WebSocket server.
 
-1. Start a static web server in the repository directory, for example:
+1. Install dependencies:
 
    ```bash
-   python -m http.server 8000
+   npm install
    ```
 
-2. Open `http://localhost:8000` in your browser to launch the game.
+2. Start the development server:
 
-3. Use the form to propose offers, accept counteroffers, or walk away. The negotiation lasts at most four rounds and applies a 0.95 discount factor each round.
+   ```bash
+   npm start
+   ```
 
-After each game the interface reveals Player 2's private valuations and outside offer so you can analyse the outcome and adjust your strategy for the next run.
+   The command serves the static files and opens a WebSocket server on the same port (default `http://localhost:8000`).
+
+3. Share the URL with a friend on your local network or deploy the app to a host that supports long-lived WebSocket
+   connections.
+
+4. Each player should open the page, choose a display name, and either create a new game or join using a shared game code.
+
+5. Take turns making offers, accepting counteroffers, or walking away. After each game, the interface reveals both
+   players' private valuations and outside offers so you can analyse the outcome before starting a fresh game.
+
+## Game rules
+
+- The negotiation lasts at most four rounds with a `0.95` discount applied each round.
+- Three indivisible items are available in every game: 7×Item 1, 4×Item 2, and 1×Item 3.
+- Private valuations and outside offers are re-drawn before each game to keep the interaction fresh.
+- Player 1 always acts first each round. Offers are binding when accepted by the receiving player.
+- Either player can walk away on their turn to receive their outside option (discounted for the current round).
+
+## Project structure
+
+```
+├── app.js          # Client-side logic for connecting, rendering, and interacting with the server
+├── index.html      # Application markup
+├── server.js       # Express + WebSocket server coordinating games
+├── styles.css      # Styling
+└── package.json    # Dependencies and scripts
+```
+
+## Deployment notes
+
+To make the game available across the internet, deploy `server.js` on a Node-compatible host and ensure WebSocket traffic
+is allowed. Because valuations are private to each player, the server sends tailored state updates to each connected client.

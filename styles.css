@@ -72,9 +72,49 @@ main {
   margin-bottom: 0.4rem;
 }
 
+.items-list {
+  margin-top: 0.35rem;
+}
+
 .note {
   color: var(--muted);
   font-size: 0.9rem;
+}
+
+.muted-text {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.lobby-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.lobby-buttons {
+  justify-content: flex-start;
+}
+
+input[type="text"],
+input[type="number"] {
+  padding: 0.5rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid #d1d5db;
+  font-size: 1rem;
+  width: 100%;
+}
+
+.lobby-status {
+  margin-top: 0.75rem;
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+
+.lobby-status.error {
+  color: var(--danger);
+  font-weight: 600;
 }
 
 .game-panel {
@@ -122,13 +162,6 @@ label {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-}
-
-input[type="number"] {
-  padding: 0.5rem 0.75rem;
-  border-radius: 8px;
-  border: 1px solid #d1d5db;
-  font-size: 1rem;
 }
 
 .button-row {
