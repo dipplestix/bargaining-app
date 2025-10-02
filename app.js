@@ -1,433 +1,507 @@
-const TOTAL_ROUNDS = 4;
-const DISCOUNT = 0.95;
-const ITEMS = [
-  { name: "Item 1", total: 7 },
-  { name: "Item 2", total: 4 },
-  { name: "Item 3", total: 1 },
-];
-const PLAYER1_VALUES = [35, 4, 24];
-const PLAYER1_OUTSIDE = 285;
+const state = {
+  socket: null,
+  role: null,
+  gameId: null,
+  config: null,
+  publicState: null,
+  privateInfo: null,
+  opponentInfo: null,
+};
 
-document.addEventListener("DOMContentLoaded", () => {
-  const roundEl = document.getElementById("round");
-  const turnEl = document.getElementById("turn");
-  const statusMessageEl = document.getElementById("status-message");
-  const historyListEl = document.getElementById("history-list");
-  const currentOfferEl = document.getElementById("current-offer");
-  const summaryEl = document.getElementById("summary");
-  const player1ValuesEl = document.getElementById("player1-values");
-  const player1OutsideEl = document.getElementById("player1-outside");
-  const player2Card = document.getElementById("player2-card");
-  const player2ValuesEl = document.getElementById("player2-values");
-  const player2OutsideEl = document.getElementById("player2-outside");
-  const offerForm = document.getElementById("offer-form");
-  const walkAwayBtn = document.getElementById("walk-away");
-  const acceptBtn = document.getElementById("accept-offer");
-  const submitOfferBtn = document.getElementById("submit-offer");
-  const newGameBtn = document.getElementById("new-game");
+document.addEventListener('DOMContentLoaded', () => {
+  const lobbyStatusEl = document.getElementById('lobby-status');
+  const nameInput = document.getElementById('player-name');
+  const gameIdInput = document.getElementById('game-id');
+  const createBtn = document.getElementById('create-game');
+  const joinBtn = document.getElementById('join-game');
+  const lobbyCard = document.getElementById('connection-card');
 
-  const offerInputs = ITEMS.map((item, index) => {
-    const input = document.getElementById(`offer-item-${index + 1}`);
-    input.max = item.total;
-    return input;
-  });
+  const roundEl = document.getElementById('round');
+  const turnEl = document.getElementById('turn');
+  const statusMessageEl = document.getElementById('status-message');
+  const historyListEl = document.getElementById('history-list');
+  const currentOfferEl = document.getElementById('current-offer');
+  const summaryEl = document.getElementById('summary');
+  const playerValuesEl = document.getElementById('player-values');
+  const outsideOfferEl = document.getElementById('player-outside');
+  const opponentCard = document.getElementById('opponent-card');
+  const opponentValuesEl = document.getElementById('opponent-values');
+  const opponentOutsideEl = document.getElementById('opponent-outside');
+  const offerForm = document.getElementById('offer-form');
+  const walkAwayBtn = document.getElementById('walk-away');
+  const acceptBtn = document.getElementById('accept-offer');
+  const submitOfferBtn = document.getElementById('submit-offer');
+  const newGameBtn = document.getElementById('new-game');
+  const totalRoundsEl = document.getElementById('total-rounds');
+  const totalRoundsStatusEl = document.getElementById('total-rounds-status');
+  const discountRateEl = document.getElementById('discount-rate');
+  const itemsListEl = document.getElementById('items-list');
+  const roleLabelEl = document.getElementById('player-role');
+  const gameCodeEl = document.getElementById('status-game-code');
+  const lobbyHelperEl = document.getElementById('lobby-helper');
+  const gamePanel = document.querySelector('.game-panel');
 
-  let state = createInitialState();
-  setupPlayer1Info();
-  resetUI();
-  updateUI();
+  const offerInputs = [
+    document.getElementById('offer-item-1'),
+    document.getElementById('offer-item-2'),
+    document.getElementById('offer-item-3'),
+  ];
 
-  offerForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    if (state.finished || state.turn !== "P1") return;
+  connectSocket();
 
-    const offer = offerInputs.map((input, idx) => parseInt(input.value, 10) || 0);
-    if (!isValidOffer(offer, "P1")) {
-      showStatus("Offer must consist of whole numbers between 0 and the available quantity of each item.", true);
+  createBtn.addEventListener('click', () => {
+    if (!state.socket || state.socket.readyState !== WebSocket.OPEN) {
+      showLobbyStatus('Connecting... please wait.', true);
       return;
     }
 
-    const currentOffer = {
-      from: "P1",
-      to: "P2",
-      quantities: offer,
-    };
-
-    state.currentOffer = currentOffer;
-    logHistory(`Player 1 offers ${formatQuantities(offer)} to Player 2.`);
-    showStatus("Waiting for Player 2's response...");
-    state.turn = "P2";
-    updateUI();
-
-    window.setTimeout(() => {
-      player2Response();
-    }, 600);
-  });
-
-  walkAwayBtn.addEventListener("click", () => {
-    if (state.finished) return;
-    if (state.turn === "P1") {
-      concludeWithWalk("Player 1");
-    } else if (state.turn === "P2") {
-      concludeWithWalk("Player 2");
-    }
-  });
-
-  acceptBtn.addEventListener("click", () => {
-    if (state.finished || state.turn !== "P1") return;
-    if (!state.currentOffer || state.currentOffer.from !== "P2") return;
-    concludeWithDeal(state.currentOffer, state.round);
-  });
-
-  newGameBtn.addEventListener("click", () => {
-    state = createInitialState();
-    resetUI();
-    updateUI();
-  });
-
-  function resetUI() {
-    historyListEl.innerHTML = "";
-    summaryEl.innerHTML = "";
-    currentOfferEl.innerHTML = "";
-    player2Card.classList.add("hidden");
-    acceptBtn.disabled = true;
-    offerInputs.forEach((input) => {
-      input.value = "";
-      input.disabled = false;
-    });
-    submitOfferBtn.disabled = false;
-    walkAwayBtn.disabled = false;
-  }
-
-  function setupPlayer1Info() {
-    player1ValuesEl.innerHTML = ITEMS.map(
-      (item, idx) => `<li>${item.name}: <strong>${PLAYER1_VALUES[idx]}</strong> value per unit</li>`
-    ).join("");
-    player1OutsideEl.textContent = PLAYER1_OUTSIDE;
-  }
-
-  function updateUI() {
-    roundEl.textContent = state.round;
-    turnEl.textContent = state.turn === "P1" ? "Player 1" : "Player 2";
-    statusMessageEl.textContent = state.statusMessage;
-
-    if (state.currentOffer) {
-      const { from, to, quantities } = state.currentOffer;
-      const heading = from === "P1" ? "Current Offer to Player 2" : "Current Offer to You";
-      const details = formatQuantities(quantities);
-      const offerValueP1 = computeValue(getShareFor("P1"), PLAYER1_VALUES);
-      const offerValueP2 = computeValue(getShareFor("P2"), state.player2.values);
-
-      currentOfferEl.innerHTML = `
-        <h3>${heading}</h3>
-        <p>${from} is offering ${details}.</p>
-        <p>Player 1 value if accepted now: <strong>${offerValueP1.toFixed(2)}</strong></p>
-        <p>Player 2 value if accepted now: <strong>${offerValueP2.toFixed(2)}</strong></p>
-      `;
-    } else {
-      currentOfferEl.innerHTML = "";
-    }
-
-    acceptBtn.disabled = !state.currentOffer || state.currentOffer.from !== "P2" || state.finished || state.turn !== "P1";
-
-    if (state.finished) {
-      player2Card.classList.remove("hidden");
-      player2ValuesEl.innerHTML = ITEMS.map(
-        (item, idx) => `<li>${item.name}: <strong>${state.player2.values[idx]}</strong> value per unit</li>`
-      ).join("");
-      player2OutsideEl.textContent = state.player2.outside;
-    }
-  }
-
-  function getShareFor(player) {
-    if (!state.currentOffer) return ITEMS.map((item) => item.total);
-
-    const offer = state.currentOffer.quantities;
-    if (state.currentOffer.from === "P1") {
-      if (player === "P1") {
-        return ITEMS.map((item, idx) => item.total - offer[idx]);
-      }
-      return offer.slice();
-    }
-
-    // offer from Player 2 to Player 1
-    if (player === "P1") {
-      return offer.slice();
-    }
-    return ITEMS.map((item, idx) => item.total - offer[idx]);
-  }
-
-  function logHistory(message) {
-    const entry = document.createElement("li");
-    entry.textContent = message;
-    historyListEl.prepend(entry);
-  }
-
-  function showStatus(message, isError = false) {
-    state.statusMessage = message;
-    statusMessageEl.textContent = message;
-    statusMessageEl.classList.toggle("outcome-fail", isError);
-  }
-
-  function isValidOffer(offer, fromPlayer) {
-    return offer.every((value, idx) => {
-      const quantity = Number.isFinite(value) ? value : -1;
-      if (!Number.isInteger(quantity) || quantity < 0) {
-        return false;
-      }
-
-      if (fromPlayer === "P1") {
-        return quantity <= ITEMS[idx].total;
-      }
-      // from Player 2 to Player 1, ensure Player 2 keeps non-negative
-      return quantity <= ITEMS[idx].total;
-    });
-  }
-
-  function computeValue(quantities, values) {
-    return quantities.reduce((sum, qty, idx) => sum + qty * values[idx], 0);
-  }
-
-  function formatQuantities(quantities) {
-    return `${quantities[0]} × Item 1, ${quantities[1]} × Item 2, ${quantities[2]} × Item 3`;
-  }
-
-  function createInitialState() {
-    const player2Values = ITEMS.map(() => randomInt(1, 100));
-    const player2Total = computeValue(
-      ITEMS.map((item) => item.total),
-      player2Values
+    disableLobbyButtons();
+    state.socket.send(
+      JSON.stringify({
+        type: 'createGame',
+        payload: { name: nameInput.value.trim() },
+      }),
     );
-    const player2Outside = randomInt(1, Math.max(1, Math.round(player2Total)));
+  });
 
-    return {
-      round: 1,
-      turn: "P1",
-      statusMessage: "Make an opening offer or walk away.",
-      currentOffer: null,
-      history: [],
-      finished: false,
-      outcome: null,
-      player2: {
-        values: player2Values,
-        outside: player2Outside,
-      },
-    };
+  joinBtn.addEventListener('click', () => {
+    if (!state.socket || state.socket.readyState !== WebSocket.OPEN) {
+      showLobbyStatus('Connecting... please wait.', true);
+      return;
+    }
+
+    const gameCode = gameIdInput.value.trim().toUpperCase();
+    if (!gameCode) {
+      showLobbyStatus('Enter a game code to join.', true);
+      return;
+    }
+
+    disableLobbyButtons();
+    state.socket.send(
+      JSON.stringify({
+        type: 'joinGame',
+        payload: { name: nameInput.value.trim(), gameId: gameCode },
+      }),
+    );
+  });
+
+  offerForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    if (!canAct()) return;
+
+    const quantities = offerInputs.map((input) => Number.parseInt(input.value, 10) || 0);
+    if (!validateOffer(quantities)) {
+      showStatus('Offer must be whole numbers within the available quantities.', true);
+      return;
+    }
+
+    state.socket.send(
+      JSON.stringify({
+        type: 'makeOffer',
+        payload: { quantities },
+      }),
+    );
+    offerInputs.forEach((input) => {
+      input.value = '';
+    });
+  });
+
+  acceptBtn.addEventListener('click', () => {
+    if (!canAccept()) return;
+    state.socket.send(JSON.stringify({ type: 'acceptOffer' }));
+  });
+
+  walkAwayBtn.addEventListener('click', () => {
+    if (!canAct()) return;
+    state.socket.send(JSON.stringify({ type: 'walkAway' }));
+  });
+
+  newGameBtn.addEventListener('click', () => {
+    if (!state.publicState || !state.publicState.finished) return;
+    state.socket.send(JSON.stringify({ type: 'requestNewGame' }));
+  });
+
+  function connectSocket() {
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${protocol}://${window.location.host}`);
+    state.socket = socket;
+
+    socket.addEventListener('open', () => {
+      showLobbyStatus('Connected. Create a new game or join an existing one.');
+      enableLobbyButtons();
+    });
+
+    socket.addEventListener('message', (event) => {
+      let message;
+      try {
+        message = JSON.parse(event.data);
+      } catch (error) {
+        console.error('Invalid message from server', error);
+        return;
+      }
+
+      switch (message.type) {
+        case 'error':
+          showLobbyStatus(message.message, true);
+          enableLobbyButtons();
+          break;
+        case 'lobby':
+          handleLobbyMessage(message);
+          enableLobbyButtons();
+          break;
+        case 'state':
+          handleStateMessage(message);
+          break;
+        case 'opponentLeft':
+          showStatus(message.message, true);
+          break;
+        default:
+          break;
+      }
+    });
+
+    socket.addEventListener('close', () => {
+      showLobbyStatus('Connection lost. Refresh the page to reconnect.', true);
+      disableLobbyButtons();
+      disableGameInputs();
+    });
+
+    socket.addEventListener('error', () => {
+      showLobbyStatus('WebSocket error occurred.', true);
+    });
   }
 
-  function concludeWithDeal(offer, round) {
-    const discountFactor = Math.pow(DISCOUNT, round - 1);
-    const player1Share = getShareFor("P1");
-    const player2Share = getShareFor("P2");
-    const player1Value = computeValue(player1Share, PLAYER1_VALUES);
-    const player2Value = computeValue(player2Share, state.player2.values);
+  function handleLobbyMessage(message) {
+    if (message.gameId) {
+      state.gameId = message.gameId;
+      gameIdInput.value = message.gameId;
+      gameCodeEl.textContent = message.gameId;
+    }
+    if (message.role) {
+      state.role = message.role;
+      updateRoleLabel();
+    }
+    if (message.message) {
+      showLobbyStatus(message.message);
+    }
 
-    const player1Discounted = player1Value * discountFactor;
-    const player2Discounted = player2Value * discountFactor;
+    if (state.role && lobbyCard) {
+      lobbyCard.classList.add('connected');
+      if (lobbyHelperEl) {
+        lobbyHelperEl.textContent = 'Share this code with your opponent to play together.';
+      }
+      if (gamePanel) {
+        gamePanel.classList.remove('hidden');
+      }
+    }
+  }
 
-    state.finished = true;
-    state.outcome = {
-      type: "deal",
-      round,
-      offer,
-      player1Value,
-      player2Value,
-      player1Discounted,
-      player2Discounted,
-    };
+  function handleStateMessage(message) {
+    state.publicState = message.state;
+    state.privateInfo = message.you;
+    state.opponentInfo = message.opponent || null;
+    state.gameId = message.state.gameId;
+    if (!state.role && message.you && message.you.role) {
+      state.role = message.you.role;
+    }
 
-    logHistory(`Deal reached in round ${round}.`);
-    showStatus("Deal reached!", false);
+    if (!state.config) {
+      state.config = {
+        items: message.state.items,
+        totalRounds: message.state.totalRounds,
+        discount: message.state.discount,
+      };
+      renderStaticConfig();
+    }
+
+    updateRoleLabel();
+    updateGameCode();
+    if (gamePanel) {
+      gamePanel.classList.remove('hidden');
+    }
+    updatePlayerInfo();
+    renderHistory();
+    renderCurrentOffer();
     renderSummary();
-    disableInputs();
-    updateUI();
+    updateStatusBar();
+    updateOpponentInfo();
+    updateActionControls();
   }
 
-  function concludeWithWalk(player) {
-    const round = state.round;
-    const discountFactor = Math.pow(DISCOUNT, round - 1);
-    const player1Discounted = PLAYER1_OUTSIDE * discountFactor;
-    const player2Discounted = state.player2.outside * discountFactor;
-
-    state.finished = true;
-    state.outcome = {
-      type: "walk",
-      by: player,
-      round,
-      player1Discounted,
-      player2Discounted,
-    };
-
-    logHistory(`${player} walks away in round ${round}.`);
-    showStatus(`${player} walked away.`, true);
-    renderSummary();
-    disableInputs();
-    updateUI();
+  function renderStaticConfig() {
+    if (!state.config) return;
+    totalRoundsEl.textContent = state.config.totalRounds;
+    if (totalRoundsStatusEl) {
+      totalRoundsStatusEl.textContent = state.config.totalRounds;
+    }
+    discountRateEl.textContent = state.config.discount.toFixed(2);
+    itemsListEl.innerHTML = state.config.items
+      .map((item) => `<li>${item.total} × ${item.name}</li>`)
+      .join('');
+    offerInputs.forEach((input, idx) => {
+      const item = state.config.items[idx];
+      if (item) {
+        input.max = item.total;
+      }
+    });
   }
 
-  function disableInputs() {
-    offerInputs.forEach((input) => (input.disabled = true));
-    submitOfferBtn.disabled = true;
-    walkAwayBtn.disabled = true;
-    acceptBtn.disabled = true;
+  function updateRoleLabel() {
+    if (!roleLabelEl) return;
+    if (!state.role || !state.privateInfo) {
+      roleLabelEl.textContent = 'Not connected';
+      return;
+    }
+    const playerName = state.privateInfo.name || (state.role === 'P1' ? 'Player 1' : 'Player 2');
+    roleLabelEl.textContent = `${state.role === 'P1' ? 'Player 1' : 'Player 2'} (${playerName})`;
+  }
+
+  function updateGameCode() {
+    if (!gameCodeEl) return;
+    gameCodeEl.textContent = state.gameId || '—';
+  }
+
+  function updatePlayerInfo() {
+    if (!state.privateInfo) return;
+    const values = state.privateInfo.values || [];
+    if (!values.length) {
+      playerValuesEl.innerHTML = '<li class="muted-text">Waiting for the negotiation to start…</li>';
+    } else {
+      playerValuesEl.innerHTML = values
+        .map((value, idx) => `<li>${state.config.items[idx].name}: <strong>${value}</strong> value per unit</li>`)
+        .join('');
+    }
+    outsideOfferEl.textContent = state.privateInfo.outside ?? '—';
+  }
+
+  function renderHistory() {
+    if (!state.publicState) return;
+    historyListEl.innerHTML = state.publicState.history
+      .map((entry) => `<li>${entry}</li>`)
+      .join('');
+  }
+
+  function renderCurrentOffer() {
+    if (!state.publicState) return;
+    const currentOffer = state.publicState.currentOffer;
+    if (!currentOffer) {
+      currentOfferEl.innerHTML = '';
+      return;
+    }
+
+    const heading = currentOffer.from === state.role ? 'Offer you made' : 'Offer to you';
+    const description = formatQuantities(currentOffer.quantities);
+    const yourShare = getShareFor(state.role, currentOffer);
+    const yourValue = computeValue(yourShare, state.privateInfo.values || []);
+    const discounted = yourValue * Math.pow(state.config.discount, (state.publicState.round || 1) - 1);
+
+    currentOfferEl.innerHTML = `
+      <h3>${heading}</h3>
+      <p>${getPlayerLabel(currentOffer.from)} proposes ${description}.</p>
+      <p>Your share if accepted: ${formatQuantities(yourShare)}</p>
+      <p>Your undiscounted value: <strong>${yourValue.toFixed(2)}</strong></p>
+      <p>Your discounted payoff this round: <strong>${discounted.toFixed(2)}</strong></p>
+    `;
   }
 
   function renderSummary() {
-    if (!state.outcome) return;
+    if (!state.publicState || !state.publicState.finished || !state.publicState.outcome) {
+      summaryEl.innerHTML = '';
+      return;
+    }
 
-    const round = state.outcome.round;
-    const discountFactor = Math.pow(DISCOUNT, round - 1).toFixed(4);
+    const outcome = state.publicState.outcome;
+    const discountFactor = Math.pow(state.config.discount, (outcome.round || 1) - 1).toFixed(4);
+    const players = state.publicState.players || {};
 
-    if (state.outcome.type === "deal") {
-      const player1Share = getShareFor("P1");
-      const player2Share = getShareFor("P2");
+    if (outcome.type === 'deal') {
       summaryEl.innerHTML = `
         <h2>Outcome</h2>
-        <p class="outcome-success">Deal reached in round ${round} (discount factor ${discountFactor}).</p>
+        <p class="outcome-success">Deal reached in round ${outcome.round} (discount factor ${discountFactor}).</p>
         <table class="summary-table">
           <thead>
             <tr>
               <th></th>
-              <th>Player 1</th>
-              <th>Player 2</th>
+              <th>${labelWithName('P1', players.P1)}</th>
+              <th>${labelWithName('P2', players.P2)}</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <th>Units received</th>
-              <td>${formatQuantities(player1Share)}</td>
-              <td>${formatQuantities(player2Share)}</td>
+              <td>${formatQuantities(outcome.player1Share)}</td>
+              <td>${formatQuantities(outcome.player2Share)}</td>
             </tr>
             <tr>
               <th>Undiscounted value</th>
-              <td>${state.outcome.player1Value.toFixed(2)}</td>
-              <td>${state.outcome.player2Value.toFixed(2)}</td>
+              <td>${outcome.player1Value.toFixed(2)}</td>
+              <td>${outcome.player2Value.toFixed(2)}</td>
             </tr>
             <tr>
               <th>Discounted payoff</th>
-              <td>${state.outcome.player1Discounted.toFixed(2)}</td>
-              <td>${state.outcome.player2Discounted.toFixed(2)}</td>
+              <td>${outcome.player1Discounted.toFixed(2)}</td>
+              <td>${outcome.player2Discounted.toFixed(2)}</td>
             </tr>
           </tbody>
         </table>
       `;
     } else {
+      const walker = getPlayerLabel(outcome.by);
       summaryEl.innerHTML = `
         <h2>Outcome</h2>
-        <p class="outcome-fail">${state.outcome.by} walked away in round ${round} (discount factor ${discountFactor}).</p>
+        <p class="outcome-fail">${walker} walked away in round ${outcome.round} (discount factor ${discountFactor}).</p>
         <p>Discounted payoffs:</p>
         <ul>
-          <li>Player 1: ${state.outcome.player1Discounted.toFixed(2)} (outside offer)</li>
-          <li>Player 2: ${state.outcome.player2Discounted.toFixed(2)} (outside offer)</li>
+          <li>${labelWithName('P1', players.P1)}: ${outcome.player1Discounted.toFixed(2)} (outside offer)</li>
+          <li>${labelWithName('P2', players.P2)}: ${outcome.player2Discounted.toFixed(2)} (outside offer)</li>
         </ul>
       `;
     }
   }
 
-  function randomInt(min, max) {
-    const low = Math.ceil(min);
-    const high = Math.floor(max);
-    return Math.floor(Math.random() * (high - low + 1)) + low;
-  }
-
-  function player2Response() {
-    if (state.finished || state.turn !== "P2") return;
-
-    if (!state.currentOffer || state.currentOffer.from !== "P1") {
-      state.turn = "P1";
-      showStatus("It's your turn.");
-      updateUI();
+  function updateStatusBar() {
+    if (!state.publicState) {
+      roundEl.textContent = '—';
+      turnEl.textContent = '—';
+      statusMessageEl.textContent = 'Not connected.';
+      statusMessageEl.classList.toggle('outcome-fail', false);
       return;
     }
 
-    const offer = state.currentOffer.quantities;
-    const p2Value = computeValue(offer, state.player2.values);
-    const discountedOfferValue = p2Value * Math.pow(DISCOUNT, state.round - 1);
-    const discountedOutside = state.player2.outside * Math.pow(DISCOUNT, state.round - 1);
+    roundEl.textContent = state.publicState.round ?? '—';
+    turnEl.textContent = state.publicState.turn
+      ? labelWithName(state.publicState.turn, state.publicState.players[state.publicState.turn])
+      : '—';
+    statusMessageEl.textContent = state.publicState.statusMessage || '';
+    statusMessageEl.classList.toggle('outcome-fail', false);
+  }
 
-    if (discountedOfferValue >= discountedOutside) {
-      logHistory("Player 2 accepts your offer.");
-      concludeWithDeal(state.currentOffer, state.round);
+  function updateOpponentInfo() {
+    if (!opponentCard) return;
+    if (!state.publicState || !state.publicState.finished || !state.opponentInfo) {
+      opponentCard.classList.add('hidden');
+      opponentValuesEl.innerHTML = '';
+      opponentOutsideEl.textContent = '';
       return;
     }
 
-    if (state.round === TOTAL_ROUNDS) {
-      concludeWithWalk("Player 2");
+    opponentCard.classList.remove('hidden');
+    opponentValuesEl.innerHTML = state.opponentInfo.values
+      .map((value, idx) => `<li>${state.config.items[idx].name}: <strong>${value}</strong> value per unit</li>`)
+      .join('');
+    opponentOutsideEl.textContent = state.opponentInfo.outside;
+  }
+
+  function updateActionControls() {
+    if (!state.publicState || !state.privateInfo) {
+      disableGameInputs();
       return;
     }
 
-    const counter = computePlayer2CounterOffer();
-    if (counter) {
-      const counterOfferValue = computeValue(
-        ITEMS.map((item, idx) => item.total - counter[idx]),
-        state.player2.values
-      );
-      const discountedCounterValue = counterOfferValue * Math.pow(DISCOUNT, state.round - 1);
-      if (discountedCounterValue < discountedOutside) {
-        concludeWithWalk("Player 2");
-        return;
-      }
+    const finished = state.publicState.finished;
+    const isTurn = state.publicState.turn === state.role;
+    const offerForYou = state.publicState.currentOffer && state.publicState.currentOffer.to === state.role;
 
-      state.currentOffer = {
-        from: "P2",
-        to: "P1",
-        quantities: counter,
-      };
-      logHistory(`Player 2 counters by offering you ${formatQuantities(counter)}.`);
-      state.turn = "P1";
-      showStatus("Player 2 made a counteroffer. You may accept, counter, or walk away.");
-      advanceRound();
-      updateUI();
-    } else {
-      concludeWithWalk("Player 2");
-    }
+    offerInputs.forEach((input) => {
+      input.disabled = !isTurn || finished;
+      if (!isTurn) {
+        input.value = '';
+      }
+    });
+
+    submitOfferBtn.disabled = !isTurn || finished;
+    walkAwayBtn.disabled = !isTurn || finished;
+    acceptBtn.disabled = !offerForYou || !isTurn || finished;
+    newGameBtn.disabled = !finished;
   }
 
-  function advanceRound() {
-    if (state.round < TOTAL_ROUNDS) {
-      state.round += 1;
-    }
+  function disableGameInputs() {
+    offerInputs.forEach((input) => {
+      input.disabled = true;
+    });
+    submitOfferBtn.disabled = true;
+    walkAwayBtn.disabled = true;
+    acceptBtn.disabled = true;
+    newGameBtn.disabled = true;
   }
 
-  function computePlayer2CounterOffer() {
-    const threshold = PLAYER1_OUTSIDE;
-    let bestOffer = null;
-    let bestP2Value = -Infinity;
+  function canAct() {
+    return (
+      state.socket &&
+      state.socket.readyState === WebSocket.OPEN &&
+      state.publicState &&
+      !state.publicState.finished &&
+      state.publicState.turn === state.role
+    );
+  }
 
-    for (let item1 = 0; item1 <= ITEMS[0].total; item1 += 1) {
-      for (let item2 = 0; item2 <= ITEMS[1].total; item2 += 1) {
-        for (let item3 = 0; item3 <= ITEMS[2].total; item3 += 1) {
-          const offer = [item1, item2, item3];
-          const player1Value = computeValue(offer, PLAYER1_VALUES);
-          if (player1Value < threshold * 0.85) {
-            continue;
-          }
-          const player2Share = ITEMS.map((item, idx) => item.total - offer[idx]);
-          const player2Value = computeValue(player2Share, state.player2.values);
-          if (player2Value > bestP2Value) {
-            bestP2Value = player2Value;
-            bestOffer = offer;
-          }
-        }
-      }
+  function canAccept() {
+    return (
+      canAct() &&
+      state.publicState.currentOffer &&
+      state.publicState.currentOffer.to === state.role
+    );
+  }
+
+  function validateOffer(offer) {
+    if (!Array.isArray(offer) || !state.config) return false;
+    return offer.every((value, idx) => {
+      if (!Number.isInteger(value) || value < 0) return false;
+      return value <= state.config.items[idx].total;
+    });
+  }
+
+  function getShareFor(role, offer) {
+    if (!state.config) return [];
+    if (offer.from === 'P1') {
+      return role === 'P1'
+        ? state.config.items.map((item, idx) => item.total - offer.quantities[idx])
+        : offer.quantities.slice();
     }
+    return role === 'P1'
+      ? offer.quantities.slice()
+      : state.config.items.map((item, idx) => item.total - offer.quantities[idx]);
+  }
 
-    if (!bestOffer) {
-      for (let item1 = 0; item1 <= ITEMS[0].total; item1 += 1) {
-        for (let item2 = 0; item2 <= ITEMS[1].total; item2 += 1) {
-          for (let item3 = 0; item3 <= ITEMS[2].total; item3 += 1) {
-            const offer = [item1, item2, item3];
-            const player2Share = ITEMS.map((item, idx) => item.total - offer[idx]);
-            const player2Value = computeValue(player2Share, state.player2.values);
-            if (player2Value > bestP2Value) {
-              bestP2Value = player2Value;
-              bestOffer = offer;
-            }
-          }
-        }
-      }
-    }
+  function computeValue(quantities, values) {
+    return quantities.reduce((sum, qty, idx) => sum + qty * (values[idx] || 0), 0);
+  }
 
-    return bestOffer;
+  function formatQuantities(quantities) {
+    if (!state.config) return '';
+    return quantities
+      .map((qty, idx) => `${qty} × ${state.config.items[idx].name}`)
+      .join(', ');
+  }
+
+  function labelWithName(role, info) {
+    if (!info || !info.name) return getPlayerLabel(role);
+    return `${getPlayerLabel(role)} (${info.name})`;
+  }
+
+  function getPlayerLabel(role) {
+    return role === 'P1' ? 'Player 1' : 'Player 2';
+  }
+
+  function showLobbyStatus(message, isError = false) {
+    if (!lobbyStatusEl) return;
+    lobbyStatusEl.textContent = message;
+    lobbyStatusEl.classList.toggle('error', Boolean(isError));
+  }
+
+  function showStatus(message, isError = false) {
+    state.publicState = state.publicState || {};
+    statusMessageEl.textContent = message;
+    statusMessageEl.classList.toggle('outcome-fail', Boolean(isError));
+  }
+
+  function disableLobbyButtons() {
+    createBtn.disabled = true;
+    joinBtn.disabled = true;
+  }
+
+  function enableLobbyButtons() {
+    createBtn.disabled = false;
+    joinBtn.disabled = false;
   }
 });
