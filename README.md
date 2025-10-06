@@ -30,6 +30,12 @@ WebSocket server.
 5. Take turns making offers, accepting counteroffers, or walking away. After each game, the interface reveals both
    players' private valuations and outside offers so you can analyse the outcome before starting a fresh game.
 
+### Saved game history
+
+Every completed negotiation (including walk-aways and disconnects) is appended to `data/game-history.json` on the
+server. The file contains the full public timeline of offers, the revealed private information, and the final outcome
+so you can review past matches or import them into other tools for analysis.
+
 ## Game rules
 
 - The negotiation lasts at most four rounds with a `0.95` discount applied each round.
