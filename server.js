@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const http = require('http');
 const express = require('express');
 const WebSocket = require('ws');
@@ -20,6 +21,7 @@ const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
 const games = new Map();
+const HISTORY_FILE = path.join(__dirname, 'data', 'game-history.json');
 
 wss.on('connection', (socket) => {
   socket.on('message', (data) => {
@@ -72,11 +74,17 @@ wss.on('connection', (socket) => {
       game.statusMessage = `${getPlayerLabel(role)} disconnected.`;
       game.finished = true;
       game.turn = null;
+      game.outcome = {
+        type: 'disconnect',
+        by: role,
+        round: game.round,
+      };
       send(otherPlayer.socket, {
         type: 'opponentLeft',
         message: `${getPlayerLabel(role)} disconnected. The match has ended.`,
       });
       sendState(game);
+      persistGameHistory(game);
     }
 
     games.delete(gameId);
@@ -268,6 +276,7 @@ function handleAccept(socket) {
   game.statusMessage = 'Deal reached!';
 
   sendState(game);
+  persistGameHistory(game);
 }
 
 function handleWalkAway(socket) {
@@ -300,6 +309,7 @@ function handleWalkAway(socket) {
   game.statusMessage = `${getPlayerLabel(role)} walked away.`;
 
   sendState(game);
+  persistGameHistory(game);
 }
 
 function handleRequestNewGame(socket) {
@@ -394,6 +404,69 @@ function sendState(game) {
 
 function addHistoryEntry(game, message) {
   game.history = [message, ...game.history].slice(0, 50);
+}
+
+function persistGameHistory(game) {
+  if (!game || !game.finished) {
+    return;
+  }
+
+  const record = {
+    id: game.id,
+    finishedAt: new Date().toISOString(),
+    round: game.round,
+    config: {
+      totalRounds: TOTAL_ROUNDS,
+      discount: DISCOUNT,
+      items: ITEMS,
+    },
+    history: [...game.history].reverse(),
+    outcome: game.outcome,
+    players: {
+      P1: game.players.P1
+        ? {
+            name: game.players.P1.name,
+            values: game.players.P1.values,
+            outside: game.players.P1.outside,
+          }
+        : null,
+      P2: game.players.P2
+        ? {
+            name: game.players.P2.name,
+            values: game.players.P2.values,
+            outside: game.players.P2.outside,
+          }
+        : null,
+    },
+  };
+
+  const dir = path.dirname(HISTORY_FILE);
+  fs.promises
+    .mkdir(dir, { recursive: true })
+    .then(() => fs.promises.readFile(HISTORY_FILE, 'utf8'))
+    .catch((error) => {
+      if (error.code === 'ENOENT') {
+        return '[]';
+      }
+      throw error;
+    })
+    .then((contents) => {
+      let existing = [];
+      try {
+        existing = JSON.parse(contents);
+        if (!Array.isArray(existing)) {
+          existing = [];
+        }
+      } catch (parseError) {
+        console.error('Failed to parse existing history file, starting fresh.', parseError);
+        existing = [];
+      }
+      existing.push(record);
+      return fs.promises.writeFile(HISTORY_FILE, JSON.stringify(existing, null, 2));
+    })
+    .catch((error) => {
+      console.error('Failed to persist game history.', error);
+    });
 }
 
 function assignPrivateInfo(player) {
