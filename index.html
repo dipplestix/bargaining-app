@@ -9,18 +9,48 @@
 <body>
   <header>
     <h1>Discounted Bargaining Game</h1>
-    <p>Negotiate with a human opponent over four rounds. Share a game code to play together online.</p>
+    <p>Negotiate with a human opponent over four rounds. Play quick matches, private games, or tournaments.</p>
   </header>
 
   <main>
     <section class="info-panel">
       <div class="card" id="connection-card">
-        <h2>Connect with a Friend</h2>
-        <p id="lobby-helper">Choose a display name. Create a game to generate a code or join an existing code.</p>
+        <h2>Welcome</h2>
+        <p id="lobby-helper">Enter your display name to get started.</p>
         <div class="lobby-grid">
           <label>Display name
             <input type="text" id="player-name" maxlength="20" placeholder="Alex" />
           </label>
+          <label class="hidden">Game code
+            <input type="text" id="game-id" maxlength="6" placeholder="ABCD" />
+          </label>
+        </div>
+        <p class="lobby-status" id="lobby-status">Connecting...</p>
+      </div>
+
+      <!-- Mode Selection -->
+      <div class="card hidden" id="mode-selection">
+        <h2>Choose Game Mode</h2>
+        <div class="button-row mode-buttons">
+          <button type="button" class="primary" id="quick-match">Quick Match</button>
+          <button type="button" class="secondary" id="private-game">Private Game</button>
+          <button type="button" class="secondary" id="tournament-mode">Tournament</button>
+        </div>
+      </div>
+
+      <!-- Queue Status -->
+      <div class="card hidden" id="queue-status">
+        <h2>Finding Opponent...</h2>
+        <p>You are in the queue. Position: <strong id="queue-position">1</strong></p>
+        <p class="muted-text">Waiting for another player to join.</p>
+        <button type="button" class="secondary" id="leave-queue">Leave Queue</button>
+      </div>
+
+      <!-- Private Game Panel -->
+      <div class="card hidden" id="private-game-panel">
+        <h2>Private Game</h2>
+        <p>Create a game and share the code, or join with a code.</p>
+        <div class="lobby-grid">
           <label>Game code
             <input type="text" id="game-id" maxlength="6" placeholder="ABCD" />
           </label>
@@ -29,7 +59,61 @@
           <button type="button" class="primary" id="create-game">Create Game</button>
           <button type="button" class="secondary" id="join-game">Join Game</button>
         </div>
-        <p class="lobby-status" id="lobby-status">Connecting...</p>
+        <button type="button" class="link-button" id="back-to-mode">Back to Mode Selection</button>
+      </div>
+
+      <!-- Tournament Panel -->
+      <div class="card hidden" id="tournament-panel">
+        <h2>Tournament</h2>
+        <p>Create a round-robin tournament or join an existing one.</p>
+        <div class="lobby-grid">
+          <label>Tournament name
+            <input type="text" id="tournament-name" maxlength="30" placeholder="My Tournament" />
+          </label>
+        </div>
+        <button type="button" class="primary" id="create-tournament">Create Tournament</button>
+        <hr />
+        <div class="lobby-grid">
+          <label>Tournament code
+            <input type="text" id="tournament-code" maxlength="6" placeholder="ABCD" />
+          </label>
+        </div>
+        <button type="button" class="secondary" id="join-tournament">Join Tournament</button>
+        <button type="button" class="link-button" id="back-to-mode">Back to Mode Selection</button>
+      </div>
+
+      <!-- Tournament Lobby -->
+      <div class="card hidden" id="tournament-lobby">
+        <h2>Tournament Lobby</h2>
+        <p>Code: <strong id="tournament-id">—</strong></p>
+        <p>Status: <strong id="tournament-status-text">pending</strong></p>
+        <h3>Players</h3>
+        <ul id="tournament-players"></ul>
+        <div class="button-row">
+          <button type="button" class="primary" id="start-tournament">Start Tournament</button>
+          <button type="button" class="primary hidden" id="ready-for-match">Ready for Next Match</button>
+          <button type="button" class="secondary" id="back-from-tournament">Leave</button>
+        </div>
+
+        <div class="hidden" id="tournament-standings">
+          <h3>Standings</h3>
+          <table class="standings-table">
+            <thead>
+              <tr><th>Rank</th><th>Player</th><th>Points</th><th>Games</th></tr>
+            </thead>
+            <tbody id="standings-body"></tbody>
+          </table>
+        </div>
+
+        <div class="hidden" id="tournament-matches">
+          <h3>Match Schedule</h3>
+          <table class="matches-table">
+            <thead>
+              <tr><th>Round</th><th>Match</th><th>Status</th></tr>
+            </thead>
+            <tbody id="matches-body"></tbody>
+          </table>
+        </div>
       </div>
 
       <div class="card">

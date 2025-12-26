@@ -1,11 +1,15 @@
 const state = {
   socket: null,
+  sessionId: null,
   role: null,
   gameId: null,
   config: null,
   publicState: null,
   privateInfo: null,
   opponentInfo: null,
+  inQueue: false,
+  tournament: null,
+  mode: null, // 'quick', 'private', 'tournament'
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -15,6 +19,39 @@ document.addEventListener('DOMContentLoaded', () => {
   const createBtn = document.getElementById('create-game');
   const joinBtn = document.getElementById('join-game');
   const lobbyCard = document.getElementById('connection-card');
+
+  // Mode selection elements
+  const modeSelection = document.getElementById('mode-selection');
+  const quickMatchBtn = document.getElementById('quick-match');
+  const privateGameBtn = document.getElementById('private-game');
+  const tournamentModeBtn = document.getElementById('tournament-mode');
+  const backToModeBtn = document.getElementById('back-to-mode');
+
+  // Queue elements
+  const queueStatus = document.getElementById('queue-status');
+  const queuePositionEl = document.getElementById('queue-position');
+  const leaveQueueBtn = document.getElementById('leave-queue');
+
+  // Private game elements
+  const privateGamePanel = document.getElementById('private-game-panel');
+
+  // Tournament elements
+  const tournamentPanel = document.getElementById('tournament-panel');
+  const tournamentNameInput = document.getElementById('tournament-name');
+  const createTournamentBtn = document.getElementById('create-tournament');
+  const tournamentCodeInput = document.getElementById('tournament-code');
+  const joinTournamentBtn = document.getElementById('join-tournament');
+  const tournamentLobby = document.getElementById('tournament-lobby');
+  const tournamentIdEl = document.getElementById('tournament-id');
+  const tournamentStatusEl = document.getElementById('tournament-status-text');
+  const tournamentPlayersEl = document.getElementById('tournament-players');
+  const startTournamentBtn = document.getElementById('start-tournament');
+  const readyForMatchBtn = document.getElementById('ready-for-match');
+  const tournamentStandings = document.getElementById('tournament-standings');
+  const standingsBody = document.getElementById('standings-body');
+  const tournamentMatches = document.getElementById('tournament-matches');
+  const matchesBody = document.getElementById('matches-body');
+  const backFromTournamentBtn = document.getElementById('back-from-tournament');
 
   const roundEl = document.getElementById('round');
   const turnEl = document.getElementById('turn');
@@ -47,14 +84,110 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('offer-item-3'),
   ];
 
+  // Load saved session and name
+  const savedSessionId = localStorage.getItem('bargaining_session_id');
+  const savedName = localStorage.getItem('bargaining_player_name');
+  if (savedName) {
+    nameInput.value = savedName;
+  }
+
   connectSocket();
 
-  createBtn.addEventListener('click', () => {
-    if (!state.socket || state.socket.readyState !== WebSocket.OPEN) {
-      showLobbyStatus('Connecting... please wait.', true);
-      return;
-    }
+  // Mode selection handlers
+  if (quickMatchBtn) {
+    quickMatchBtn.addEventListener('click', () => {
+      if (!ensureRegistered()) return;
+      state.mode = 'quick';
+      showPanel('queue');
+      state.socket.send(JSON.stringify({ type: 'joinQueue' }));
+    });
+  }
 
+  if (privateGameBtn) {
+    privateGameBtn.addEventListener('click', () => {
+      state.mode = 'private';
+      showPanel('private');
+    });
+  }
+
+  if (tournamentModeBtn) {
+    tournamentModeBtn.addEventListener('click', () => {
+      state.mode = 'tournament';
+      showPanel('tournament');
+    });
+  }
+
+  if (backToModeBtn) {
+    backToModeBtn.addEventListener('click', () => {
+      showPanel('mode');
+    });
+  }
+
+  if (leaveQueueBtn) {
+    leaveQueueBtn.addEventListener('click', () => {
+      state.socket.send(JSON.stringify({ type: 'leaveQueue' }));
+      state.inQueue = false;
+      showPanel('mode');
+    });
+  }
+
+  // Tournament handlers
+  if (createTournamentBtn) {
+    createTournamentBtn.addEventListener('click', () => {
+      if (!ensureRegistered()) return;
+      const name = tournamentNameInput.value.trim() || 'Tournament';
+      state.socket.send(JSON.stringify({
+        type: 'createTournament',
+        payload: { name }
+      }));
+    });
+  }
+
+  if (joinTournamentBtn) {
+    joinTournamentBtn.addEventListener('click', () => {
+      if (!ensureRegistered()) return;
+      const code = tournamentCodeInput.value.trim().toUpperCase();
+      if (!code) {
+        showLobbyStatus('Enter a tournament code.', true);
+        return;
+      }
+      state.socket.send(JSON.stringify({
+        type: 'joinTournament',
+        payload: { tournamentId: code }
+      }));
+    });
+  }
+
+  if (startTournamentBtn) {
+    startTournamentBtn.addEventListener('click', () => {
+      if (!state.tournament) return;
+      state.socket.send(JSON.stringify({
+        type: 'startTournament',
+        payload: { tournamentId: state.tournament.id }
+      }));
+    });
+  }
+
+  if (readyForMatchBtn) {
+    readyForMatchBtn.addEventListener('click', () => {
+      if (!state.tournament) return;
+      state.socket.send(JSON.stringify({
+        type: 'readyForMatch',
+        payload: { tournamentId: state.tournament.id }
+      }));
+    });
+  }
+
+  if (backFromTournamentBtn) {
+    backFromTournamentBtn.addEventListener('click', () => {
+      state.tournament = null;
+      showPanel('mode');
+    });
+  }
+
+  // Private game handlers
+  createBtn.addEventListener('click', () => {
+    if (!ensureRegistered()) return;
     disableLobbyButtons();
     state.socket.send(
       JSON.stringify({
@@ -65,11 +198,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   joinBtn.addEventListener('click', () => {
-    if (!state.socket || state.socket.readyState !== WebSocket.OPEN) {
-      showLobbyStatus('Connecting... please wait.', true);
-      return;
-    }
-
+    if (!ensureRegistered()) return;
     const gameCode = gameIdInput.value.trim().toUpperCase();
     if (!gameCode) {
       showLobbyStatus('Enter a game code to join.', true);
@@ -118,7 +247,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   newGameBtn.addEventListener('click', () => {
     if (!state.publicState || !state.publicState.finished) return;
+
+    // If this was a tournament game, go back to tournament lobby
+    if (state.publicState.tournamentId) {
+      state.socket.send(JSON.stringify({
+        type: 'getTournamentStatus',
+        payload: { tournamentId: state.publicState.tournamentId }
+      }));
+      return;
+    }
+
     state.socket.send(JSON.stringify({ type: 'requestNewGame' }));
+  });
+
+  // Name input saves to localStorage
+  nameInput.addEventListener('change', () => {
+    localStorage.setItem('bargaining_player_name', nameInput.value.trim());
   });
 
   function connectSocket() {
@@ -127,8 +271,16 @@ document.addEventListener('DOMContentLoaded', () => {
     state.socket = socket;
 
     socket.addEventListener('open', () => {
-      showLobbyStatus('Connected. Create a new game or join an existing one.');
-      enableLobbyButtons();
+      showLobbyStatus('Connected. Registering...');
+      // Register with session
+      const name = nameInput.value.trim() || 'Anonymous';
+      socket.send(JSON.stringify({
+        type: 'register',
+        payload: {
+          sessionId: savedSessionId || null,
+          name: name
+        }
+      }));
     });
 
     socket.addEventListener('message', (event) => {
@@ -141,6 +293,9 @@ document.addEventListener('DOMContentLoaded', () => {
       }
 
       switch (message.type) {
+        case 'registered':
+          handleRegistered(message);
+          break;
         case 'error':
           showLobbyStatus(message.message, true);
           enableLobbyButtons();
@@ -154,6 +309,27 @@ document.addEventListener('DOMContentLoaded', () => {
           break;
         case 'opponentLeft':
           showStatus(message.message, true);
+          break;
+        case 'queueStatus':
+          handleQueueStatus(message);
+          break;
+        case 'matchFound':
+          handleMatchFound(message);
+          break;
+        case 'tournamentCreated':
+        case 'tournamentJoined':
+        case 'tournamentUpdate':
+        case 'tournamentStatus':
+          handleTournamentUpdate(message);
+          break;
+        case 'tournamentMatchStart':
+          handleTournamentMatchStart(message);
+          break;
+        case 'tournamentWaiting':
+          showLobbyStatus(message.message);
+          break;
+        case 'serverShutdown':
+          showLobbyStatus('Server is restarting. Please refresh the page.', true);
           break;
         default:
           break;
@@ -169,6 +345,154 @@ document.addEventListener('DOMContentLoaded', () => {
     socket.addEventListener('error', () => {
       showLobbyStatus('WebSocket error occurred.', true);
     });
+  }
+
+  function ensureRegistered() {
+    if (!state.socket || state.socket.readyState !== WebSocket.OPEN) {
+      showLobbyStatus('Connecting... please wait.', true);
+      return false;
+    }
+    if (!state.sessionId) {
+      showLobbyStatus('Registering... please wait.', true);
+      return false;
+    }
+    return true;
+  }
+
+  function handleRegistered(message) {
+    state.sessionId = message.sessionId;
+    localStorage.setItem('bargaining_session_id', message.sessionId);
+    showLobbyStatus(`Welcome, ${message.name}! Choose a game mode.`);
+    enableLobbyButtons();
+    showPanel('mode');
+  }
+
+  function handleQueueStatus(message) {
+    state.inQueue = message.waiting;
+    if (queuePositionEl) {
+      queuePositionEl.textContent = message.position || 1;
+    }
+    if (message.waiting) {
+      showPanel('queue');
+    }
+  }
+
+  function handleMatchFound(message) {
+    state.inQueue = false;
+    state.gameId = message.gameId;
+    state.role = message.role;
+    showLobbyStatus(`Match found! Playing against ${message.opponent}`);
+    showPanel('game');
+  }
+
+  function handleTournamentUpdate(message) {
+    state.tournament = message.tournament;
+    updateTournamentUI();
+    showPanel('tournament-lobby');
+  }
+
+  function handleTournamentMatchStart(message) {
+    state.gameId = message.gameId;
+    state.role = message.role;
+    showLobbyStatus(`Tournament match starting! Round ${message.roundNumber} vs ${message.opponent}`);
+    showPanel('game');
+  }
+
+  function updateTournamentUI() {
+    if (!state.tournament) return;
+
+    if (tournamentIdEl) {
+      tournamentIdEl.textContent = state.tournament.id;
+    }
+    if (tournamentStatusEl) {
+      tournamentStatusEl.textContent = state.tournament.status;
+    }
+    if (tournamentPlayersEl) {
+      tournamentPlayersEl.innerHTML = state.tournament.players
+        .map(p => {
+          const payoff = p.totalPayoff ? p.totalPayoff.toFixed(2) : '0.00';
+          return `<li>${p.name} - ${payoff} pts (${p.gamesPlayed || 0} games)</li>`;
+        })
+        .join('');
+    }
+
+    // Show/hide start button based on status and if creator
+    if (startTournamentBtn) {
+      const canStart = state.tournament.status === 'pending' && state.tournament.playerCount >= 2;
+      startTournamentBtn.disabled = !canStart;
+      startTournamentBtn.classList.toggle('hidden', state.tournament.status !== 'pending');
+    }
+
+    if (readyForMatchBtn) {
+      readyForMatchBtn.classList.toggle('hidden', state.tournament.status !== 'active');
+    }
+
+    if (backFromTournamentBtn) {
+      backFromTournamentBtn.classList.toggle('hidden', state.tournament.status === 'active');
+    }
+
+    // Show standings
+    if (standingsBody && state.tournament.players) {
+      const sorted = [...state.tournament.players].sort((a, b) => (b.totalPayoff || 0) - (a.totalPayoff || 0));
+      standingsBody.innerHTML = sorted.map((p, idx) => `
+        <tr>
+          <td>${idx + 1}</td>
+          <td>${p.name}</td>
+          <td>${(p.totalPayoff || 0).toFixed(2)}</td>
+          <td>${p.gamesPlayed || 0}</td>
+        </tr>
+      `).join('');
+    }
+
+    // Show matches
+    if (matchesBody && state.tournament.matches) {
+      matchesBody.innerHTML = state.tournament.matches.map(m => `
+        <tr>
+          <td>${m.roundNumber}</td>
+          <td>${m.player1} vs ${m.player2}</td>
+          <td>${m.status}</td>
+        </tr>
+      `).join('');
+    }
+
+    if (tournamentStandings) {
+      tournamentStandings.classList.toggle('hidden', state.tournament.status === 'pending');
+    }
+    if (tournamentMatches) {
+      tournamentMatches.classList.toggle('hidden', state.tournament.status === 'pending');
+    }
+  }
+
+  function showPanel(panel) {
+    // Hide all panels
+    if (modeSelection) modeSelection.classList.add('hidden');
+    if (queueStatus) queueStatus.classList.add('hidden');
+    if (privateGamePanel) privateGamePanel.classList.add('hidden');
+    if (tournamentPanel) tournamentPanel.classList.add('hidden');
+    if (tournamentLobby) tournamentLobby.classList.add('hidden');
+    if (gamePanel) gamePanel.classList.add('hidden');
+
+    // Show requested panel
+    switch (panel) {
+      case 'mode':
+        if (modeSelection) modeSelection.classList.remove('hidden');
+        break;
+      case 'queue':
+        if (queueStatus) queueStatus.classList.remove('hidden');
+        break;
+      case 'private':
+        if (privateGamePanel) privateGamePanel.classList.remove('hidden');
+        break;
+      case 'tournament':
+        if (tournamentPanel) tournamentPanel.classList.remove('hidden');
+        break;
+      case 'tournament-lobby':
+        if (tournamentLobby) tournamentLobby.classList.remove('hidden');
+        break;
+      case 'game':
+        if (gamePanel) gamePanel.classList.remove('hidden');
+        break;
+    }
   }
 
   function handleLobbyMessage(message) {
@@ -190,9 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (lobbyHelperEl) {
         lobbyHelperEl.textContent = 'Share this code with your opponent to play together.';
       }
-      if (gamePanel) {
-        gamePanel.classList.remove('hidden');
-      }
+      showPanel('game');
     }
   }
 
@@ -216,9 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateRoleLabel();
     updateGameCode();
-    if (gamePanel) {
-      gamePanel.classList.remove('hidden');
-    }
+    showPanel('game');
     updatePlayerInfo();
     renderHistory();
     renderCurrentOffer();
@@ -265,7 +585,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!state.privateInfo) return;
     const values = state.privateInfo.values || [];
     if (!values.length) {
-      playerValuesEl.innerHTML = '<li class="muted-text">Waiting for the negotiation to start…</li>';
+      playerValuesEl.innerHTML = '<li class="muted-text">Waiting for the negotiation to start...</li>';
     } else {
       playerValuesEl.innerHTML = values
         .map((value, idx) => `<li>${state.config.items[idx].name}: <strong>${value}</strong> value per unit</li>`)
@@ -314,6 +634,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const discountFactor = Math.pow(state.config.discount, (outcome.round || 1) - 1).toFixed(4);
     const players = state.publicState.players || {};
 
+    let tournamentNote = '';
+    if (state.publicState.tournamentId) {
+      tournamentNote = '<p class="muted-text">This was a tournament match. Click "Next Match" to continue.</p>';
+    }
+
     if (outcome.type === 'deal') {
       summaryEl.innerHTML = `
         <h2>Outcome</h2>
@@ -344,6 +669,7 @@ document.addEventListener('DOMContentLoaded', () => {
             </tr>
           </tbody>
         </table>
+        ${tournamentNote}
       `;
     } else {
       const walker = getPlayerLabel(outcome.by);
@@ -355,6 +681,7 @@ document.addEventListener('DOMContentLoaded', () => {
           <li>${labelWithName('P1', players.P1)}: ${outcome.player1Discounted.toFixed(2)} (outside offer)</li>
           <li>${labelWithName('P2', players.P2)}: ${outcome.player2Discounted.toFixed(2)} (outside offer)</li>
         </ul>
+        ${tournamentNote}
       `;
     }
   }
@@ -413,6 +740,13 @@ document.addEventListener('DOMContentLoaded', () => {
     walkAwayBtn.disabled = !isTurn || finished;
     acceptBtn.disabled = !offerForYou || !isTurn || finished;
     newGameBtn.disabled = !finished;
+
+    // Update button text for tournament games
+    if (state.publicState.tournamentId && finished) {
+      newGameBtn.textContent = 'Next Match';
+    } else {
+      newGameBtn.textContent = 'Start New Game';
+    }
   }
 
   function disableGameInputs() {

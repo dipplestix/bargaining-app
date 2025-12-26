@@ -263,6 +263,93 @@ button.secondary:hover:not(:disabled) {
   display: none;
 }
 
+/* Mode selection buttons */
+.mode-buttons {
+  flex-direction: column;
+}
+
+.mode-buttons button {
+  width: 100%;
+}
+
+/* Link button style */
+.link-button {
+  background: none;
+  color: var(--primary);
+  padding: 0.5rem;
+  font-size: 0.9rem;
+  margin-top: 0.5rem;
+}
+
+.link-button:hover:not(:disabled) {
+  text-decoration: underline;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Tournament tables */
+.standings-table,
+.matches-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.standings-table th,
+.standings-table td,
+.matches-table th,
+.matches-table td {
+  border: 1px solid #d1d5db;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.standings-table th,
+.matches-table th {
+  background: var(--secondary);
+  font-weight: 600;
+}
+
+.standings-table tbody tr:nth-child(even),
+.matches-table tbody tr:nth-child(even) {
+  background: var(--bg);
+}
+
+/* Tournament lobby */
+#tournament-lobby h3 {
+  margin: 1rem 0 0.5rem;
+  font-size: 1rem;
+}
+
+#tournament-lobby ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+#tournament-lobby li {
+  padding: 0.5rem 0.75rem;
+  background: var(--secondary);
+  border-radius: 8px;
+  margin-bottom: 0.4rem;
+}
+
+#tournament-panel hr {
+  margin: 1rem 0;
+  border: none;
+  border-top: 1px solid #d1d5db;
+}
+
+/* Queue status */
+#queue-status {
+  text-align: center;
+}
+
+#queue-status h2 {
+  color: var(--primary);
+}
+
 @media (max-width: 900px) {
   main {
     grid-template-columns: 1fr;

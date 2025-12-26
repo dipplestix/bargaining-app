@@ -1,0 +1,5 @@
+node_modules/
+bargaining.db
+bargaining.db-wal
+bargaining.db-shm
+*.log

@@ -1,54 +1,127 @@
 # bargaining-app
 
-A real-time browser-based simulation of a four-round bargaining game with discounted payoffs. Two human players
-connect over the network, receive private valuations, and take turns proposing and responding to offers.
+A real-time browser-based simulation of a four-round bargaining game with discounted payoffs. Players connect over the network, receive private valuations, and take turns proposing and responding to offers.
 
-## Getting started
+## Features
 
-This project is implemented with vanilla HTML, CSS, and JavaScript and synchronises players using a small Node.js
-WebSocket server.
+- **Quick Match**: Join a queue and get automatically paired with another player
+- **Private Games**: Create a game code and share it with a friend
+- **Tournaments**: Run round-robin tournaments with any even number of players
+- **Data Logging**: All games and actions are logged to SQLite for analysis
+- **Bot Simulation**: Test strategies with automated players
 
-1. Install dependencies:
+## Getting Started
 
-   ```bash
-   npm install
-   ```
+### Installation
 
-2. Start the development server:
+```bash
+npm install
+```
 
-   ```bash
-   npm start
-   ```
+### Running the Server
 
-   The command serves the static files and opens a WebSocket server on the same port (default `http://localhost:8000`).
+```bash
+npm start
+```
 
-3. Share the URL with a friend on your local network or deploy the app to a host that supports long-lived WebSocket
-   connections.
+The server runs on `http://localhost:8888` by default. Set the `PORT` environment variable to change it.
 
-4. Each player should open the page, choose a display name, and either create a new game or join using a shared game code.
+### Playing the Game
 
-5. Take turns making offers, accepting counteroffers, or walking away. After each game, the interface reveals both
-   players' private valuations and outside offers so you can analyse the outcome before starting a fresh game.
+1. Open the URL in your browser
+2. Enter your display name
+3. Choose a game mode:
+   - **Quick Match**: Auto-pair with another waiting player
+   - **Private Game**: Create/join with a 4-letter code
+   - **Tournament**: Create or join a round-robin tournament
 
-## Game rules
+## Game Rules
 
-- The negotiation lasts at most four rounds with a `0.95` discount applied each round.
-- Three indivisible items are available in every game: 7×Item 1, 4×Item 2, and 1×Item 3.
-- Private valuations and outside offers are re-drawn before each game to keep the interaction fresh.
-- Player 1 always acts first each round. Offers are binding when accepted by the receiving player.
-- Either player can walk away on their turn to receive their outside option (discounted for the current round).
+- The negotiation lasts at most four rounds with a `0.95` discount applied each round
+- Three indivisible items are available: 7×Item 1, 4×Item 2, and 1×Item 3
+- Private valuations (5-100 per item) and outside offers are randomly assigned each game
+- Player 1 always acts first. Offers are binding when accepted
+- Either player can walk away to receive their outside option (discounted)
 
-## Project structure
+## Running Simulations
+
+Generate test data by running bot simulations:
+
+```bash
+# Start the server in one terminal
+npm start
+
+# Run simulations in another terminal
+node simulate.js
+```
+
+The simulation runs 28 games with different strategy combinations:
+- `fair` - Split items roughly 50/50
+- `greedy` - Offer very little to opponent
+- `generous` - Give more to opponent
+- `strategic` - Consider own values, keep high-value items
+- `impatient` - Start generous, get greedier each round
+- `random` - Random offers
+
+## Analyzing Data
+
+After playing games or running simulations:
+
+```bash
+node analyze.js
+```
+
+This produces insights including:
+- Overall deal vs walkaway rates
+- Outcomes by round
+- Payoff statistics
+- Strategy performance comparison
+- Allocation efficiency
+- First mover advantage analysis
+
+### Custom SQL Queries
+
+The SQLite database (`bargaining.db`) contains:
+
+```sql
+-- Sessions: player identities
+SELECT * FROM sessions;
+
+-- Games: all game records with outcomes
+SELECT * FROM games WHERE outcome_type IS NOT NULL;
+
+-- Actions: every offer, accept, and walkaway
+SELECT * FROM actions ORDER BY timestamp;
+
+-- Example: Average payoff by outcome type
+SELECT outcome_type, AVG(player1_payoff + player2_payoff) as avg_total
+FROM games GROUP BY outcome_type;
+```
+
+## Project Structure
 
 ```
-├── app.js          # Client-side logic for connecting, rendering, and interacting with the server
+├── server.js       # Express + WebSocket server
+├── app.js          # Client-side game logic
 ├── index.html      # Application markup
-├── server.js       # Express + WebSocket server coordinating games
 ├── styles.css      # Styling
+├── lib/
+│   └── db.js       # SQLite database module
+├── simulate.js     # Bot simulation script
+├── analyze.js      # Data analysis script
+├── bargaining.db   # SQLite database (created on first run)
 └── package.json    # Dependencies and scripts
 ```
 
-## Deployment notes
+## API Endpoints
 
-To make the game available across the internet, deploy `server.js` on a Node-compatible host and ensure WebSocket traffic
-is allowed. Because valuations are private to each player, the server sends tailored state updates to each connected client.
+- `GET /health` - Server health check
+
+## Deployment
+
+Deploy `server.js` on any Node.js host with WebSocket support. The database file (`bargaining.db`) is created automatically on first run.
+
+For production, consider:
+- Setting `PORT` environment variable
+- Using a process manager like PM2
+- Backing up the database file periodically
