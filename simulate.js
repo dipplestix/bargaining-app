@@ -155,12 +155,15 @@ class SimulatedPlayer {
 
     if (!you || !you.values) return;
 
+    const isFinalRound = game.round >= game.totalRounds;
+
     // Check if there's an offer to us
     if (game.currentOffer && game.currentOffer.to === this.state.role) {
       const offer = game.currentOffer;
       const myShare = this.getMyShare(offer);
       const myValue = this.computeValue(myShare, you.values);
       const discountedValue = myValue * Math.pow(game.discount, game.round - 1);
+      const discountedOutside = you.outside * Math.pow(game.discount, game.round - 1);
       const maxPossible = this.computeValue(game.items.map(i => i.total), you.values);
 
       // Decide to accept or counter
@@ -171,8 +174,19 @@ class SimulatedPlayer {
         return;
       }
 
+      // On final round, must accept or walk - no counter-offer allowed
+      if (isFinalRound) {
+        // Accept if better than outside option, otherwise walk
+        if (discountedValue >= discountedOutside) {
+          this.socket.send(JSON.stringify({ type: 'acceptOffer' }));
+        } else {
+          this.socket.send(JSON.stringify({ type: 'walkAway' }));
+        }
+        return;
+      }
+
       // Maybe walk away in later rounds if offer is terrible
-      if (game.round >= 3 && discountedValue < you.outside * Math.pow(game.discount, game.round - 1) * 0.5) {
+      if (game.round >= 4 && discountedValue < discountedOutside * 0.5) {
         if (Math.random() < 0.3) {
           this.socket.send(JSON.stringify({ type: 'walkAway' }));
           return;
@@ -180,7 +194,13 @@ class SimulatedPlayer {
       }
     }
 
-    // Make an offer
+    // Make an offer (not allowed on final round, but shouldn't reach here if final round)
+    if (isFinalRound) {
+      // Shouldn't happen, but handle gracefully
+      this.socket.send(JSON.stringify({ type: 'walkAway' }));
+      return;
+    }
+
     const quantities = this.makeOffer(you.values, you.outside, game.items, game.round);
     this.socket.send(JSON.stringify({
       type: 'makeOffer',

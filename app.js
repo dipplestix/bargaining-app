@@ -71,7 +71,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const newGameBtn = document.getElementById('new-game');
   const totalRoundsEl = document.getElementById('total-rounds');
   const totalRoundsStatusEl = document.getElementById('total-rounds-status');
-  const discountRateEl = document.getElementById('discount-rate');
   const itemsListEl = document.getElementById('items-list');
   const roleLabelEl = document.getElementById('player-role');
   const gameCodeEl = document.getElementById('status-game-code');
@@ -83,6 +82,57 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('offer-item-2'),
     document.getElementById('offer-item-3'),
   ];
+  const offerPreviewEl = document.getElementById('offer-preview');
+
+  // Add input listeners for live offer preview
+  offerInputs.forEach(input => {
+    input.addEventListener('input', updateOfferPreview);
+  });
+
+  function updateOfferPreview() {
+    if (!state.config || !state.privateInfo || !state.privateInfo.values) {
+      if (offerPreviewEl) offerPreviewEl.innerHTML = '';
+      return;
+    }
+
+    const quantities = offerInputs.map(input => {
+      const val = parseInt(input.value, 10);
+      return isNaN(val) ? 0 : Math.max(0, val);
+    });
+
+    const items = state.config.items;
+    const values = state.privateInfo.values;
+
+    // Calculate what you keep vs what you offer
+    const youKeep = items.map((item, idx) => item.total - quantities[idx]);
+    const yourValue = computeValue(youKeep, values);
+    const offeredValue = computeValue(quantities, values);
+    const totalValue = computeValue(items.map(i => i.total), values);
+
+    // Check for invalid quantities
+    const isValid = quantities.every((q, idx) => q >= 0 && q <= items[idx].total);
+
+    if (offerPreviewEl) {
+      if (!isValid) {
+        offerPreviewEl.innerHTML = '<div class="preview-row"><span class="preview-label" style="color: var(--danger)">Invalid quantities</span></div>';
+      } else {
+        offerPreviewEl.innerHTML = `
+          <div class="preview-row">
+            <span class="preview-label">Value you keep:</span>
+            <span class="preview-value">${yourValue.toFixed(0)}</span>
+          </div>
+          <div class="preview-row">
+            <span class="preview-label">Value you offer:</span>
+            <span class="preview-value">${offeredValue.toFixed(0)}</span>
+          </div>
+          <div class="preview-row total-row">
+            <span class="preview-label">Your total bundle value:</span>
+            <span class="preview-value">${totalValue.toFixed(0)}</span>
+          </div>
+        `;
+      }
+    }
+  }
 
   // Load saved session and name
   const savedSessionId = localStorage.getItem('bargaining_session_id');
@@ -231,7 +281,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }),
     );
     offerInputs.forEach((input) => {
-      input.value = '';
+      input.value = '0';
     });
   });
 
@@ -527,14 +577,13 @@ document.addEventListener('DOMContentLoaded', () => {
       state.role = message.you.role;
     }
 
-    if (!state.config) {
-      state.config = {
-        items: message.state.items,
-        totalRounds: message.state.totalRounds,
-        discount: message.state.discount,
-      };
-      renderStaticConfig();
-    }
+    // Always update config (values change each game)
+    state.config = {
+      items: message.state.items,
+      totalRounds: message.state.totalRounds,
+      discount: message.state.discount,
+    };
+    renderStaticConfig();
 
     updateRoleLabel();
     updateGameCode();
@@ -546,6 +595,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateStatusBar();
     updateOpponentInfo();
     updateActionControls();
+    updateOfferPreview();
   }
 
   function renderStaticConfig() {
@@ -554,7 +604,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (totalRoundsStatusEl) {
       totalRoundsStatusEl.textContent = state.config.totalRounds;
     }
-    discountRateEl.textContent = state.config.discount.toFixed(2);
     itemsListEl.innerHTML = state.config.items
       .map((item) => `<li>${item.total} × ${item.name}</li>`)
       .join('');
@@ -613,14 +662,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const description = formatQuantities(currentOffer.quantities);
     const yourShare = getShareFor(state.role, currentOffer);
     const yourValue = computeValue(yourShare, state.privateInfo.values || []);
-    const discounted = yourValue * Math.pow(state.config.discount, (state.publicState.round || 1) - 1);
 
     currentOfferEl.innerHTML = `
       <h3>${heading}</h3>
       <p>${getPlayerLabel(currentOffer.from)} proposes ${description}.</p>
       <p>Your share if accepted: ${formatQuantities(yourShare)}</p>
-      <p>Your undiscounted value: <strong>${yourValue.toFixed(2)}</strong></p>
-      <p>Your discounted payoff this round: <strong>${discounted.toFixed(2)}</strong></p>
+      <p>Your value if accepted: <strong>${yourValue.toFixed(2)}</strong></p>
     `;
   }
 
@@ -631,7 +678,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     const outcome = state.publicState.outcome;
-    const discountFactor = Math.pow(state.config.discount, (outcome.round || 1) - 1).toFixed(4);
     const players = state.publicState.players || {};
 
     let tournamentNote = '';
@@ -642,7 +688,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (outcome.type === 'deal') {
       summaryEl.innerHTML = `
         <h2>Outcome</h2>
-        <p class="outcome-success">Deal reached in round ${outcome.round} (discount factor ${discountFactor}).</p>
+        <p class="outcome-success">Deal reached in round ${outcome.round}.</p>
         <table class="summary-table">
           <thead>
             <tr>
@@ -658,14 +704,9 @@ document.addEventListener('DOMContentLoaded', () => {
               <td>${formatQuantities(outcome.player2Share)}</td>
             </tr>
             <tr>
-              <th>Undiscounted value</th>
+              <th>Payoff</th>
               <td>${outcome.player1Value.toFixed(2)}</td>
               <td>${outcome.player2Value.toFixed(2)}</td>
-            </tr>
-            <tr>
-              <th>Discounted payoff</th>
-              <td>${outcome.player1Discounted.toFixed(2)}</td>
-              <td>${outcome.player2Discounted.toFixed(2)}</td>
             </tr>
           </tbody>
         </table>
@@ -675,11 +716,11 @@ document.addEventListener('DOMContentLoaded', () => {
       const walker = getPlayerLabel(outcome.by);
       summaryEl.innerHTML = `
         <h2>Outcome</h2>
-        <p class="outcome-fail">${walker} walked away in round ${outcome.round} (discount factor ${discountFactor}).</p>
-        <p>Discounted payoffs:</p>
+        <p class="outcome-fail">${walker} walked away in round ${outcome.round}.</p>
+        <p>Payoffs (outside offers):</p>
         <ul>
-          <li>${labelWithName('P1', players.P1)}: ${outcome.player1Discounted.toFixed(2)} (outside offer)</li>
-          <li>${labelWithName('P2', players.P2)}: ${outcome.player2Discounted.toFixed(2)} (outside offer)</li>
+          <li>${labelWithName('P1', players.P1)}: ${outcome.player1Discounted.toFixed(2)}</li>
+          <li>${labelWithName('P2', players.P2)}: ${outcome.player2Discounted.toFixed(2)}</li>
         </ul>
         ${tournamentNote}
       `;
@@ -728,15 +769,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const finished = state.publicState.finished;
     const isTurn = state.publicState.turn === state.role;
     const offerForYou = state.publicState.currentOffer && state.publicState.currentOffer.to === state.role;
+    const isFinalRound = state.config && state.publicState.round >= state.config.totalRounds;
+
+    // On final round, player can only accept or walk away (no new offers)
+    const canMakeOffer = isTurn && !finished && !isFinalRound;
 
     offerInputs.forEach((input) => {
-      input.disabled = !isTurn || finished;
+      input.disabled = !canMakeOffer;
       if (!isTurn) {
-        input.value = '';
+        input.value = '0';
       }
     });
 
-    submitOfferBtn.disabled = !isTurn || finished;
+    submitOfferBtn.disabled = !canMakeOffer;
     walkAwayBtn.disabled = !isTurn || finished;
     acceptBtn.disabled = !offerForYou || !isTurn || finished;
     newGameBtn.disabled = !finished;

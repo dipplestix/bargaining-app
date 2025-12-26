@@ -7,8 +7,8 @@ const db = require('./lib/db');
 
 const PORT = process.env.PORT || 8888;
 
-const TOTAL_ROUNDS = 4;
-const DISCOUNT = 0.95;
+const TOTAL_ROUNDS = 6;
+const DISCOUNT = 1.0;
 const ITEMS = [
   { name: 'Item 1', total: 7 },
   { name: 'Item 2', total: 4 },
@@ -402,6 +402,12 @@ function handleOffer(socket, payload = {}) {
     return;
   }
 
+  // On the final round, the responding player can only accept or walk away
+  if (game.round >= TOTAL_ROUNDS) {
+    send(socket, { type: 'error', message: 'Final round: you can only accept or walk away.' });
+    return;
+  }
+
   if (!Array.isArray(payload.quantities) || payload.quantities.length !== ITEMS.length) {
     send(socket, { type: 'error', message: 'Offer must include all item quantities.' });
     return;
@@ -447,11 +453,14 @@ function handleOffer(socket, payload = {}) {
   addHistoryEntry(game, `${getPlayerLabel(role)} offers ${formatQuantities(quantities)} to ${getPlayerLabel(toRole)}.`);
 
   game.turn = toRole;
-  if (role === 'P2' && game.round < TOTAL_ROUNDS) {
-    game.round += 1;
-  }
+  game.round += 1;
 
-  game.statusMessage = `Waiting for ${getPlayerLabel(toRole)} to respond.`;
+  // Update status message based on whether it's the final round
+  if (game.round >= TOTAL_ROUNDS) {
+    game.statusMessage = `Final round: ${getPlayerLabel(toRole)} must accept or walk away.`;
+  } else {
+    game.statusMessage = `Waiting for ${getPlayerLabel(toRole)} to respond.`;
+  }
 
   sendState(game);
 }
@@ -1089,7 +1098,7 @@ function assignPrivateInfo(player) {
     ITEMS.map((item) => item.total),
     values,
   );
-  const outside = randomInt(10, Math.max(10, Math.round(totalValue)));
+  const outside = randomInt(0, Math.round(totalValue));
 
   player.values = values;
   player.outside = outside;

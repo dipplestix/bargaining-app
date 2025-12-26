@@ -3,13 +3,13 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Real-Time Bargaining Game</title>
+  <title>Bargaining Game</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header>
-    <h1>Discounted Bargaining Game</h1>
-    <p>Negotiate with a human opponent over four rounds. Play quick matches, private games, or tournaments.</p>
+    <h1>Bargaining Game</h1>
+    <p>Negotiate with a human opponent over six rounds. Play quick matches, private games, or tournaments.</p>
   </header>
 
   <main>
@@ -119,8 +119,7 @@
       <div class="card">
         <h2>Game Parameters</h2>
         <ul>
-          <li>Total rounds: <strong id="total-rounds">4</strong></li>
-          <li>Discount rate: <strong id="discount-rate">0.95</strong></li>
+          <li>Total rounds: <strong id="total-rounds">6</strong></li>
           <li>Items available:</li>
         </ul>
         <ul id="items-list" class="items-list"></ul>
@@ -144,7 +143,7 @@
     <section class="game-panel hidden">
       <div class="status-bar">
         <div>Game code: <span id="status-game-code">—</span></div>
-        <div>Round: <span id="round">—</span> / <span id="total-rounds-status">4</span></div>
+        <div>Round: <span id="round">—</span> / <span id="total-rounds-status">6</span></div>
         <div>Turn: <span id="turn">—</span></div>
         <div class="status-message" id="status-message">Waiting to connect...</div>
       </div>
@@ -155,15 +154,16 @@
           <p class="instruction">Enter how many units you offer to your opponent.</p>
           <div class="input-grid">
             <label>Item 1
-              <input type="number" min="0" step="1" id="offer-item-1" required />
+              <input type="number" min="0" step="1" id="offer-item-1" value="0" required />
             </label>
             <label>Item 2
-              <input type="number" min="0" step="1" id="offer-item-2" required />
+              <input type="number" min="0" step="1" id="offer-item-2" value="0" required />
             </label>
             <label>Item 3
-              <input type="number" min="0" step="1" id="offer-item-3" required />
+              <input type="number" min="0" step="1" id="offer-item-3" value="0" required />
             </label>
           </div>
+          <div class="offer-preview" id="offer-preview"></div>
           <div class="button-row">
             <button type="submit" class="primary" id="submit-offer">Submit Offer</button>
             <button type="button" id="walk-away" class="secondary">Walk Away</button>
@@ -188,7 +188,7 @@
   </main>
 
   <footer>
-    <p>Built for exploring strategic bargaining with private values and discounted rounds.</p>
+    <p>Built for exploring strategic bargaining with private values.</p>
   </footer>
 
   <script src="app.js"></script>

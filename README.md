@@ -1,6 +1,6 @@
 # bargaining-app
 
-A real-time browser-based simulation of a four-round bargaining game with discounted payoffs. Players connect over the network, receive private valuations, and take turns proposing and responding to offers.
+A real-time browser-based simulation of a six-round bargaining game. Players connect over the network, receive private valuations, and take turns proposing and responding to offers.
 
 ## Features
 
@@ -37,11 +37,12 @@ The server runs on `http://localhost:8888` by default. Set the `PORT` environmen
 
 ## Game Rules
 
-- The negotiation lasts at most four rounds with a `0.95` discount applied each round
+- The negotiation lasts at most six rounds (3 offers per player)
+- On round 6, Player 2 can only accept or walk away (no counter-offer)
 - Three indivisible items are available: 7×Item 1, 4×Item 2, and 1×Item 3
-- Private valuations (5-100 per item) and outside offers are randomly assigned each game
+- Private valuations (5-100 per item) and outside offers (0 to total value) are randomly assigned each game
 - Player 1 always acts first. Offers are binding when accepted
-- Either player can walk away to receive their outside option (discounted)
+- Either player can walk away to receive their outside option
 
 ## Running Simulations
 

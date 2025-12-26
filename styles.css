@@ -350,6 +350,43 @@ button.secondary:hover:not(:disabled) {
   color: var(--primary);
 }
 
+/* Offer preview */
+.offer-preview {
+  background: var(--secondary);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0;
+  font-size: 0.95rem;
+}
+
+.offer-preview:empty {
+  display: none;
+}
+
+.offer-preview .preview-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 0.25rem;
+}
+
+.offer-preview .preview-row:last-child {
+  margin-bottom: 0;
+}
+
+.offer-preview .preview-label {
+  color: var(--muted);
+}
+
+.offer-preview .preview-value {
+  font-weight: 600;
+}
+
+.offer-preview .total-row {
+  border-top: 1px solid #d1d5db;
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+}
+
 @media (max-width: 900px) {
   main {
     grid-template-columns: 1fr;
